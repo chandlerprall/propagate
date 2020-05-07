@@ -1,0 +1,13 @@
+{
+	"compilerOptions": {
+		"noEmit": true,
+		"lib": [
+			"es2015",
+			"dom"
+		],
+		"jsx": "react"
+	},
+	"include": [
+		"src/**/*.ts"
+	]
+}
