@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import chroma from 'chroma-js';
-import Propagate from './propagate';
+import Propagate, { Computed } from './propagate';
 import usePropagate from './use_propagate';
 import PropagateContext from './propagate_context';
 
@@ -16,12 +16,13 @@ const togglePrimary = () => {
 
 /* ## Configure Theme ## */
 const theme = new Propagate();
-theme.set('primary', '#ff4b7d');
-theme.set('secondary', ['primary'], primary => chroma(primary).darken(2).hex());
+theme.primary = '#ff4b7d';
+theme.secondary = new Computed([theme.primary], primary => chroma(primary).darken(2).hex());
 
 const App = () => {
   /* ## Access Colors ## */
-  const [primary, secondary] = usePropagate(['primary', 'secondary']);
+  //const [primary, secondary] = usePropagate('primary', 'secondary');
+  const [primary, secondary] = usePropagate(theme.primary, theme.secondary);
 
   return (
     <button

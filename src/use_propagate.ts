@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState } from 'react';
 import PropagateContext from './propagate_context';
 
-export default function usePropagate(references: string[]) {
+export default function usePropagate(...references: string[]) {
   const propagate = useContext(PropagateContext);
   const [values, setValues] = useState(references.map(reference => propagate.get(reference)));
 

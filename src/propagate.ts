@@ -2,6 +2,10 @@ type Subscriber = (value: string) => void;
 type Computation = (...args: any[]) => any;
 type ComputationDef = [string[], Computation];
 
+export class Computed {
+  constructor(public references: string[], public compute: Function) {}
+}
+
 export default class Propagate {
   values = new Map<string, any>();
   subscriptions = new Map<string, Set<Subscriber>>();
@@ -9,6 +13,24 @@ export default class Propagate {
 
   dependencies = new Map<string, string[]>();
   dependants = new Map<string, Set<string>>();
+
+  constructor() {
+    return new Proxy(this, {
+      set: (obj, property, value) => {
+        if (value instanceof Computed) {
+          this.set(property, value.references, value.compute);
+        } else {
+          this.set(property, value);
+        }
+        return true;
+      },
+
+      get: (obj, property) => {
+        if (obj[property]) return obj[property];
+        return property;
+      }
+    });
+  }
 
   set(key: string, references: string[], computation: Computation)
   set(key: string, value: any)
