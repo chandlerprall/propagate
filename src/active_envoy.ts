@@ -1,6 +1,6 @@
 import {SubscriptionTreeNode} from './subscription_tree';
 
-const proxyAccessSymbol = Symbol('ActiveEnvoy Proxy Target');
+export const proxyAccessSymbol = Symbol('ActiveEnvoy Proxy Target');
 
 interface ProxyTarget<Model extends {}> {
   subscriptionTree?: SubscriptionTreeNode;
@@ -132,4 +132,65 @@ export function subscribe<ProxiedObject extends {}>(envoyProxy: ProxiedObject, k
   const targetNode = subscriptionTree.getNode(targetSelector);
 
   return targetNode.subscribe(listener);
+}
+
+const selectorProxyHandler: ProxyHandler<string[]> = {
+  getPrototypeOf() {
+    return null;
+  },
+
+  setPrototypeOf() {
+    return false;
+  },
+
+  isExtensible() {
+    return false;
+  },
+
+  preventExtensions() {
+    return false;
+  },
+
+  getOwnPropertyDescriptor() {
+    return undefined;
+  },
+
+  defineProperty() {
+    return false;
+  },
+
+  has() {
+    return false;
+  },
+
+  get(target, property: string | typeof proxyAccessSymbol) {
+    if (property === proxyAccessSymbol) {
+      return target;
+    }
+    return new Proxy([...target, property], selectorProxyHandler);
+  },
+
+  set() {
+    return false;
+  },
+
+  deleteProperty() {
+    return false;
+  },
+
+  ownKeys() {
+    return [];
+  },
+
+  apply() {
+    return undefined;
+  },
+
+  construct() {
+    return [];
+  }
+};
+
+export function createSelectors<T extends {}>(): T {
+  return new Proxy([], selectorProxyHandler) as unknown as T;
 }

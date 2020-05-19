@@ -4,7 +4,7 @@ export class SubscriptionTreeNode {
   listeners: Set<Function> = new Set();
   children: { [key: string]: SubscriptionTreeNode } = {};
 
-  constructor(private getValueAt: (path: string[]) => any) {}
+  constructor(public getValueAt: (path: string[]) => any) {}
 
   subscribe(listener: Function) {
     this.listeners.add(listener);
