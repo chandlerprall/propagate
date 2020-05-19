@@ -1,4 +1,10 @@
+import {SubscriptionTreeNode} from './subscription_tree';
+
+const proxyAccessSymbol = Symbol('ActiveEnvoy Proxy Target');
+
 interface ProxyTarget<Model extends {}> {
+  subscriptionTree?: SubscriptionTreeNode;
+  root: ProxyTarget<any>;
   selectors: string[];
   model: Model;
 }
@@ -32,12 +38,18 @@ const proxyHandler: ProxyHandler<ProxyTarget<any>> = {
     return Reflect.has(target.model, property);
   },
 
-  get(target, property: string) {
+  get(target, property: string | typeof proxyAccessSymbol) {
+    if (property === proxyAccessSymbol) {
+      return target;
+    }
+
     const value = Reflect.get(target.model, property);
 
     if (typeof value === 'object' && value !== null) {
       return createEnvoy(
         value,
+        // @ts-ignore
+        target,
         [...target.selectors, property]
       );
     }
@@ -45,8 +57,14 @@ const proxyHandler: ProxyHandler<ProxyTarget<any>> = {
     return value;
   },
 
-  set(target, property, value) {
-    return Reflect.set(target.model, property, value);
+  set(target, property: string, value) {
+    const result = Reflect.set(target.model, property, value);
+
+    if (result === true) {
+      target.root.subscriptionTree!.getNode([...target.selectors, property]).notify();
+    }
+
+    return result;
   },
 
   deleteProperty(target, property) {
@@ -66,12 +84,52 @@ const proxyHandler: ProxyHandler<ProxyTarget<any>> = {
   }
 };
 
-export function createEnvoy<T>(model: T = ({} as any), selectors: string[] = []): T {
-  return new Proxy(
-    {
-      selectors,
-      model
-    },
+export function createEnvoy<T>(model: T = ({} as any), root = undefined, selectors: string[] = []): T {
+  const envoy: ProxyTarget<any> = {
+    // @ts-ignore
+    root,
+    selectors,
+    model,
+  };
+
+  const proxy = new Proxy(
+    envoy,
+    // @ts-ignore
     proxyHandler
   ) as any as T;
+
+  // @ts-ignore
+  if (root === undefined) {
+    // @ts-ignore
+    envoy.root = envoy;
+
+    const getValueAt = (_path: string[], path = [..._path]) => {
+      let node = proxy;
+      while (path.length) {
+        const nodeName = path.shift()!;
+        // @ts-ignore
+        if (node.hasOwnProperty(nodeName)) {
+          // @ts-ignore
+          node = node[nodeName];
+        } else {
+          return undefined;
+        }
+      }
+      return node;
+    };
+    envoy.subscriptionTree = new SubscriptionTreeNode(getValueAt);
+  }
+
+  return proxy;
+}
+
+export function subscribe<ProxiedObject extends {}>(envoyProxy: ProxiedObject, key: keyof ProxiedObject, listener: Function) {
+  // @ts-ignore
+  const targetProxy = envoyProxy[proxyAccessSymbol];
+  const targetSelector = [...targetProxy.selectors, key];
+
+  const subscriptionTree = targetProxy.root.subscriptionTree as SubscriptionTreeNode;
+  const targetNode = subscriptionTree.getNode(targetSelector);
+
+  return targetNode.subscribe(listener);
 }

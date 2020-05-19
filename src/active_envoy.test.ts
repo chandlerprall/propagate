@@ -1,4 +1,4 @@
-import {createEnvoy} from './active_envoy';
+import {createEnvoy, subscribe} from './active_envoy';
 
 describe('ActiveEnvoy', () => {
   describe('setting and getting', () => {
@@ -78,6 +78,28 @@ describe('ActiveEnvoy', () => {
         model.parent.child.nested = 30;
         expect(parent.child.nested).toBe(30);
       });
+    });
+  });
+
+  describe('subscriptions', () => {
+    it('alerts listeners to changes', () => {
+      const æ = createEnvoy({ nested: { value: 5 } });
+
+      const nestedListener = jest.fn();
+      subscribe(æ, 'nested', nestedListener);
+
+      const valueListener = jest.fn();
+      subscribe(æ.nested, 'value', valueListener);
+
+      æ.nested.value = 6;
+
+      expect(nestedListener).toHaveBeenCalledTimes(1);
+      expect(nestedListener).toHaveBeenLastCalledWith({
+        value: 6
+      });
+
+      expect(valueListener).toHaveBeenCalledTimes(1);
+      expect(valueListener).toHaveBeenLastCalledWith(6);
     });
   });
 });
