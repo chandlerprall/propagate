@@ -16,7 +16,9 @@ function setOn(model: { [key: string]: any }, _path: string[], value: any) {
 
   while (path.length) {
     const segment = path.shift()!;
-    if (node.hasOwnProperty(segment) === false) return false;
+    if (node.hasOwnProperty(segment) === false) {
+      node[segment] = {};
+    }
     node = node[segment];
   }
 

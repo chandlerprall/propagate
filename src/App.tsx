@@ -10,29 +10,32 @@ document.body.appendChild(div);
 
 const primaries = ['#ff4b7d', '#9f78ff'];
 const togglePrimary = () => {
-  const nextPrimary = resolve(theme.primary) === primaries[0] ? primaries[1] : primaries[0];
-  theme.primary = nextPrimary;
+  const nextPrimary = resolve(theme.colors.primary) === primaries[0] ? primaries[1] : primaries[0];
+  theme.colors.primary = nextPrimary;
 };
 
 /* ## Configure Theme ## */
 interface Theme {
-  primary: string;
-  secondary: string;
+  colors: {
+    primary: string;
+    secondary: string;
+  }
 }
 const theme = createEnvoy<Theme>();
 window.theme = theme;
 
-theme.primary = '#ff4b7d';
-theme.secondary = computed([theme.primary], primary => {
+theme.colors.primary = '#ff4b7d';
+theme.colors.secondary = computed([theme.colors.primary], primary => {
   try {
     return chroma(primary).darken(2).hex();
   } catch (e) {
-    return primary;
+    return resolve(theme.colors.secondary);
   }
 });
 
 const App = () => {
-  const [primary, secondary] = useActiveEnvoy(theme.primary, theme.secondary);
+  const [fulltheme] = useActiveEnvoy(theme);
+  const [primary, secondary] = useActiveEnvoy(theme.colors.primary, theme.colors.secondary);
 
   return (
     <div>
@@ -48,7 +51,11 @@ const App = () => {
 
       <br/><br/>
 
-      <input type="text" value={primary} onChange={e => theme.primary = e.target.value}/>
+      <input type="text" value={primary} onChange={e => theme.colors.primary = e.target.value}/>
+
+      <br/><br/>
+
+      <pre><code>{JSON.stringify(fulltheme, null, 2)}</code></pre>
     </div>
   );
 };
