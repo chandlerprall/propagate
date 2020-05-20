@@ -3,6 +3,7 @@ export class SubscriptionTreeNode {
   path: string[] = [];
   listeners: Set<Function> = new Set();
   children: { [key: string]: SubscriptionTreeNode } = {};
+  isNotifying = false;
 
   constructor(public getValueAt: (path: string[]) => any) {}
 
@@ -14,6 +15,10 @@ export class SubscriptionTreeNode {
   }
 
   notify(walkUp = true, walkDown = true) {
+    if (this.isNotifying) return;
+
+    this.isNotifying = true;
+
     if (walkUp === true) {
       if (this.parent) {
         this.parent.notify(true, false);
@@ -32,6 +37,8 @@ export class SubscriptionTreeNode {
         this.children[childKeys[i]].notify(false, true);
       }
     }
+
+    this.isNotifying = false;
   }
 
   setChild(name: string, node: SubscriptionTreeNode) {

@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import chroma from 'chroma-js';
 import {ActivEnvoyContext} from './active_envoy_context';
-import {createEnvoy, createSelectors} from './active_envoy';
+import {computed, createEnvoy, createSelectors} from './active_envoy';
 import {useActiveEnvoy} from './useActiveEnvoy';
 
 const div = document.createElement('div');
@@ -10,9 +10,8 @@ document.body.appendChild(div);
 
 const primaries = ['#ff4b7d', '#9f78ff'];
 const togglePrimary = () => {
-  const nextPrimary = themeEnvoy.primary === primaries[0] ? primaries[1] : primaries[0];
-  themeEnvoy.primary = nextPrimary;
-  themeEnvoy.secondary = chroma(nextPrimary).darken(2).hex();
+  const nextPrimary = theme.primary === primaries[0] ? primaries[1] : primaries[0];
+  theme.primary = nextPrimary;
 };
 
 /* ## Configure Theme ## */
@@ -20,19 +19,17 @@ interface Theme {
   primary: string;
   secondary: string;
 }
-const themeEnvoy = createEnvoy<Theme>();
-window.themeEnvoy = themeEnvoy;
-themeEnvoy.primary = '#ff4b7d';
-themeEnvoy.secondary = '#aa3253';
-// theme.secondary = new Computed([theme.primary], primary => chroma(primary).darken(2).hex());
+const theme = createEnvoy<Theme>();
+const themeSelectors = createSelectors<Theme>(theme);
 
-const theme = createSelectors<Theme>();
+window.theme = theme;
+
+theme.primary = '#ff4b7d';
+theme.secondary = computed([themeSelectors.primary], primary => chroma(primary).darken(2).hex());
 
 const App = () => {
   /* ## Access Colors ## */
-  //const [primary, secondary] = usePropagate('primary', 'secondary');
-  // const [primary, secondary] = usePropagate(theme.primary, theme.secondary);
-  const [primary, secondary] = useActiveEnvoy(theme.primary, theme.secondary);
+  const [primary, secondary] = useActiveEnvoy(themeSelectors.primary, themeSelectors.secondary);
 
   return (
     <button
@@ -48,7 +45,7 @@ const App = () => {
 };
 
 ReactDOM.render(
-  <ActivEnvoyContext.Provider value={themeEnvoy}>
+  <ActivEnvoyContext.Provider value={theme}>
     <App/>
   </ActivEnvoyContext.Provider>,
   div

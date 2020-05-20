@@ -1,4 +1,4 @@
-import {createEnvoy, subscribe} from './active_envoy';
+import {computed, createEnvoy, createSelectors, subscribe} from './active_envoy';
 
 describe('ActiveEnvoy', () => {
   describe('setting and getting', () => {
@@ -100,6 +100,28 @@ describe('ActiveEnvoy', () => {
 
       expect(valueListener).toHaveBeenCalledTimes(1);
       expect(valueListener).toHaveBeenLastCalledWith(6);
+    });
+  });
+
+  describe('computed', () => {
+    it('allows computed values', () => {
+      interface Model { value: number, square: number }
+      const æ = createEnvoy<Model>({ value: 4 });
+      const æs = createSelectors<Model>(æ);
+      æ.square = computed(
+        [æs.value],
+        value => {
+          // @ts-ignore
+          return value * value;
+        }
+      );
+
+      expect(æ.value).toBe(4);
+      expect(æ.square).toBe(16);
+
+      æ.value = 6;
+      expect(æ.value).toBe(6);
+      expect(æ.square).toBe(36);
     });
   });
 });

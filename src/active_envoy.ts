@@ -58,10 +58,27 @@ const proxyHandler: ProxyHandler<ProxyTarget<any>> = {
   },
 
   set(target, property: string, value) {
+    const propertyPath = [...target.selectors, property];
+
+    if (value instanceof Computed) {
+      const computed = value;
+      value = computed.getValue();
+
+      const updater = () => {
+        Reflect.set(target.model, property, computed.getValue());
+        target.root.subscriptionTree!.getNode(propertyPath).notify();
+      };
+
+      computed.dependencies.forEach(dependency => {
+        // @ts-ignore
+        target.root.subscriptionTree!.getNode(dependency[proxyAccessSymbol].selector).subscribe(updater);
+      });
+    }
+
     const result = Reflect.set(target.model, property, value);
 
     if (result === true) {
-      target.root.subscriptionTree!.getNode([...target.selectors, property]).notify();
+      target.root.subscriptionTree!.getNode(propertyPath).notify();
     }
 
     return result;
@@ -84,7 +101,7 @@ const proxyHandler: ProxyHandler<ProxyTarget<any>> = {
   }
 };
 
-export function createEnvoy<T>(model: T = ({} as any), root = undefined, selectors: string[] = []): T {
+export function createEnvoy<T>(model: Partial<T> = ({} as any), root = undefined, selectors: string[] = []): T {
   const envoy: ProxyTarget<any> = {
     // @ts-ignore
     root,
@@ -134,9 +151,9 @@ export function subscribe<ProxiedObject extends {}>(envoyProxy: ProxiedObject, k
   return targetNode.subscribe(listener);
 }
 
-const selectorProxyHandler: ProxyHandler<string[]> = {
-  getPrototypeOf() {
-    return null;
+const selectorProxyHandler: ProxyHandler<{envoy: any, selector: string[]}> = {
+  getPrototypeOf(target) {
+    return Reflect.getPrototypeOf(target);
   },
 
   setPrototypeOf() {
@@ -151,23 +168,27 @@ const selectorProxyHandler: ProxyHandler<string[]> = {
     return false;
   },
 
-  getOwnPropertyDescriptor() {
-    return undefined;
+  getOwnPropertyDescriptor(target, propertyKey) {
+    return Reflect.getOwnPropertyDescriptor(target, propertyKey);
   },
 
   defineProperty() {
     return false;
   },
 
-  has() {
-    return false;
+  has(target, propertyKey) {
+    return Reflect.has(target, propertyKey);
   },
 
   get(target, property: string | typeof proxyAccessSymbol) {
     if (property === proxyAccessSymbol) {
       return target;
     }
-    return new Proxy([...target, property], selectorProxyHandler);
+    const {envoy, selector} = target;
+    return new Proxy({
+      envoy,
+      selector: [...selector, property],
+    }, selectorProxyHandler);
   },
 
   set() {
@@ -178,8 +199,8 @@ const selectorProxyHandler: ProxyHandler<string[]> = {
     return false;
   },
 
-  ownKeys() {
-    return [];
+  ownKeys(target) {
+    return Reflect.ownKeys(target);
   },
 
   apply() {
@@ -191,6 +212,28 @@ const selectorProxyHandler: ProxyHandler<string[]> = {
   }
 };
 
-export function createSelectors<T extends {}>(): T {
-  return new Proxy([], selectorProxyHandler) as unknown as T;
+export function createSelectors<T extends {}>(envoy: any): T {
+  return new Proxy({ envoy, selector: [] }, selectorProxyHandler) as unknown as T;
+}
+
+export class Computed<T> {
+  public envoy: any;
+  constructor(public dependencies: any[], public computer: (...values: any[]) => T) {
+    this.envoy = dependencies[0][proxyAccessSymbol].envoy[proxyAccessSymbol];
+  }
+
+  getValue() {
+    return this.computer(
+      ...this.dependencies.map(dependency =>
+        this.envoy.subscriptionTree.getValueAt(dependency[proxyAccessSymbol].selector)
+      )
+    );
+  }
+}
+
+export function computed<T>(
+  dependencies: any[],
+  computer: (values: any[]) => T
+): T {
+  return new Computed(dependencies, computer) as unknown as T;
 }
