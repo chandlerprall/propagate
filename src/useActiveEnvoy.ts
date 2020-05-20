@@ -1,12 +1,12 @@
 import {useContext, useEffect, useState} from 'react';
-import { proxyAccessSymbol } from './active_envoy';
+import {proxyAccessSymbol, ProxyTarget} from './active_envoy';
 import { ActivEnvoyContext } from './active_envoy_context';
 import {SubscriptionTreeNode} from './subscription_tree';
 
 export const useActiveEnvoy = (..._selectors: any[]) => {
   const envoy = useContext(ActivEnvoyContext);
 
-  const selectors: Array<{ [proxyAccessSymbol]: {envoy: any, selector: string[]} }> = _selectors;
+  const selectors: Array<ProxyTarget<any>> = _selectors;
 
   // @ts-ignore
   const subscriptionTree: SubscriptionTreeNode = envoy[proxyAccessSymbol].root.subscriptionTree;
@@ -14,16 +14,17 @@ export const useActiveEnvoy = (..._selectors: any[]) => {
 
   const [values, setValues] = useState(() => {
     return selectors.map(selector => {
-      const path = selector[proxyAccessSymbol].selector;
+      // @ts-ignore
+      const path = selector[proxyAccessSymbol].selectors;
       return getValueAt(path);
     });
   });
 
   useEffect(() => {
     const unsubs = selectors.map((selector, index) => {
-      const path = selector[proxyAccessSymbol].selector;
+      // @ts-ignore
+      const path = selector[proxyAccessSymbol].selectors;
       return subscriptionTree.getNode(path).subscribe((nextValue: any) => {
-
         setValues(prevValues => {
           if (prevValues[index] === nextValue) return prevValues;
 

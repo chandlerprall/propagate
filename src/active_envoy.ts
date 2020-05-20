@@ -2,11 +2,39 @@ import {SubscriptionTreeNode} from './subscription_tree';
 
 export const proxyAccessSymbol = Symbol('ActiveEnvoy Proxy Target');
 
-interface ProxyTarget<Model extends {}> {
+export interface ProxyTarget<Model extends {}> {
   subscriptionTree?: SubscriptionTreeNode;
   root: ProxyTarget<any>;
   selectors: string[];
   model: Model;
+}
+
+function setOn(model: { [key: string]: any }, _path: string[], value: any) {
+  const path = [..._path];
+  const propertyName = path.pop()!;
+  let node = model;
+
+  while (path.length) {
+    const segment = path.shift()!;
+    if (node.hasOwnProperty(segment) === false) return false;
+    node = node[segment];
+  }
+
+  node[propertyName] = value;
+  return true;
+}
+
+function getOn(model: { [key: string]: any }, _path: string[]) {
+  const path = [..._path];
+  let node = model;
+
+  while (path.length) {
+    const segment = path.shift()!;
+    if (node.hasOwnProperty(segment) === false) return undefined;
+    node = node[segment];
+  }
+
+  return node;
 }
 
 const proxyHandler: ProxyHandler<ProxyTarget<any>> = {
@@ -43,18 +71,14 @@ const proxyHandler: ProxyHandler<ProxyTarget<any>> = {
       return target;
     }
 
-    const value = Reflect.get(target.model, property);
+    const propertyPath = [...target.selectors, property];
 
-    if (typeof value === 'object' && value !== null) {
-      return createEnvoy(
-        value,
-        // @ts-ignore
-        target,
-        [...target.selectors, property]
-      );
-    }
-
-    return value;
+    return createEnvoy(
+      target.model,
+      // @ts-ignore
+      target.root,
+      propertyPath,
+    );
   },
 
   set(target, property: string, value) {
@@ -65,17 +89,17 @@ const proxyHandler: ProxyHandler<ProxyTarget<any>> = {
       value = computed.getValue();
 
       const updater = () => {
-        Reflect.set(target.model, property, computed.getValue());
+        setOn(target.model, propertyPath, computed.getValue());
         target.root.subscriptionTree!.getNode(propertyPath).notify();
       };
 
       computed.dependencies.forEach(dependency => {
         // @ts-ignore
-        target.root.subscriptionTree!.getNode(dependency[proxyAccessSymbol].selector).subscribe(updater);
+        target.root.subscriptionTree!.getNode(dependency[proxyAccessSymbol].selectors).subscribe(updater);
       });
     }
 
-    const result = Reflect.set(target.model, property, value);
+    const result = setOn(target.model, propertyPath, value);
 
     if (result === true) {
       target.root.subscriptionTree!.getNode(propertyPath).notify();
@@ -121,7 +145,7 @@ export function createEnvoy<T>(model: Partial<T> = ({} as any), root = undefined
     envoy.root = envoy;
 
     const getValueAt = (_path: string[], path = [..._path]) => {
-      let node = proxy;
+      let node = envoy.model;
       while (path.length) {
         const nodeName = path.shift()!;
         // @ts-ignore
@@ -151,81 +175,16 @@ export function subscribe<ProxiedObject extends {}>(envoyProxy: ProxiedObject, k
   return targetNode.subscribe(listener);
 }
 
-const selectorProxyHandler: ProxyHandler<{envoy: any, selector: string[]}> = {
-  getPrototypeOf(target) {
-    return Reflect.getPrototypeOf(target);
-  },
-
-  setPrototypeOf() {
-    return false;
-  },
-
-  isExtensible() {
-    return false;
-  },
-
-  preventExtensions() {
-    return false;
-  },
-
-  getOwnPropertyDescriptor(target, propertyKey) {
-    return Reflect.getOwnPropertyDescriptor(target, propertyKey);
-  },
-
-  defineProperty() {
-    return false;
-  },
-
-  has(target, propertyKey) {
-    return Reflect.has(target, propertyKey);
-  },
-
-  get(target, property: string | typeof proxyAccessSymbol) {
-    if (property === proxyAccessSymbol) {
-      return target;
-    }
-    const {envoy, selector} = target;
-    return new Proxy({
-      envoy,
-      selector: [...selector, property],
-    }, selectorProxyHandler);
-  },
-
-  set() {
-    return false;
-  },
-
-  deleteProperty() {
-    return false;
-  },
-
-  ownKeys(target) {
-    return Reflect.ownKeys(target);
-  },
-
-  apply() {
-    return undefined;
-  },
-
-  construct() {
-    return [];
-  }
-};
-
-export function createSelectors<T extends {}>(envoy: any): T {
-  return new Proxy({ envoy, selector: [] }, selectorProxyHandler) as unknown as T;
-}
-
 export class Computed<T> {
   public envoy: any;
   constructor(public dependencies: any[], public computer: (...values: any[]) => T) {
-    this.envoy = dependencies[0][proxyAccessSymbol].envoy[proxyAccessSymbol];
+    this.envoy = dependencies[0][proxyAccessSymbol].root;
   }
 
   getValue() {
     return this.computer(
       ...this.dependencies.map(dependency =>
-        this.envoy.subscriptionTree.getValueAt(dependency[proxyAccessSymbol].selector)
+        this.envoy.subscriptionTree.getValueAt(dependency[proxyAccessSymbol].selectors)
       )
     );
   }
@@ -236,4 +195,9 @@ export function computed<T>(
   computer: (values: any[]) => T
 ): T {
   return new Computed(dependencies, computer) as unknown as T;
+}
+
+export function resolve(selector: any): any {
+  const envoy: ProxyTarget<any> = selector[proxyAccessSymbol];
+  return getOn(envoy.model, envoy.selectors);
 }
