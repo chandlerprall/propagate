@@ -23,22 +23,33 @@ const theme = createEnvoy<Theme>();
 window.theme = theme;
 
 theme.primary = '#ff4b7d';
-theme.secondary = computed([theme.primary], primary => chroma(primary).darken(2).hex());
+theme.secondary = computed([theme.primary], primary => {
+  try {
+    return chroma(primary).darken(2).hex();
+  } catch (e) {
+    return primary;
+  }
+});
 
 const App = () => {
-  /* ## Access Colors ## */
   const [primary, secondary] = useActiveEnvoy(theme.primary, theme.secondary);
 
   return (
-    <button
-      onClick={togglePrimary}
-      style={{
-        color: secondary,
-        background: primary,
-      }}
-    >
-      Toggle Colors!
-    </button>
+    <div>
+      <button
+        onClick={togglePrimary}
+        style={{
+          color: secondary,
+          background: primary,
+        }}
+      >
+        Toggle Colors!
+      </button>
+
+      <br/><br/>
+
+      <input type="text" value={primary} onChange={e => theme.primary = e.target.value}/>
+    </div>
   );
 };
 
