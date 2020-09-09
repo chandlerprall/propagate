@@ -1,45 +1,71 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import chroma from 'chroma-js';
-import Propagate, { Computed } from './propagate';
-import usePropagate from './use_propagate';
-import PropagateContext from './propagate_context';
+import {ActivEnvoyContext} from './active_envoy_context';
+import {computed, createEnvoy, resolve} from './active_envoy';
+import {useActiveEnvoy} from './useActiveEnvoy';
 
 const div = document.createElement('div');
 document.body.appendChild(div);
 
 const primaries = ['#ff4b7d', '#9f78ff'];
 const togglePrimary = () => {
-  const nextPrimary = theme.get('primary') === primaries[0] ? primaries[1] : primaries[0];
-  theme.set('primary', nextPrimary);
+  const nextPrimary = resolve(theme.colors.primary) === primaries[0] ? primaries[1] : primaries[0];
+  theme.colors.primary = nextPrimary;
 };
 
 /* ## Configure Theme ## */
-const theme = new Propagate();
-theme.primary = '#ff4b7d';
-theme.secondary = new Computed([theme.primary], primary => chroma(primary).darken(2).hex());
+interface Theme {
+  colors: {
+    primary: string;
+    secondary: string;
+  }
+}
+const model = {};
+const theme = createEnvoy<Theme>(model);
+window.model = model;
+window.theme = theme;
+window.resolve = resolve;
+
+theme.colors.primary = '#ff4b7d';
+theme.colors.secondary = computed([theme.colors.primary], primary => {
+  try {
+    return chroma(primary).darken(2).hex();
+  } catch (e) {
+    return resolve(theme.colors.secondary);
+  }
+});
 
 const App = () => {
-  /* ## Access Colors ## */
-  //const [primary, secondary] = usePropagate('primary', 'secondary');
-  const [primary, secondary] = usePropagate(theme.primary, theme.secondary);
+  const [fulltheme] = useActiveEnvoy(theme);
+  const [primary, secondary] = useActiveEnvoy(theme.colors.primary, theme.colors.secondary);
 
   return (
-    <button
-      onClick={togglePrimary}
-      style={{
-        color: secondary,
-        background: primary,
-      }}
-    >
-      Toggle Colors!
-    </button>
+    <div>
+      <button
+        onClick={togglePrimary}
+        style={{
+          color: secondary,
+          background: primary,
+        }}
+      >
+        Toggle Colors!
+      </button>
+
+      <br/><br/>
+
+      <input type="text" value={primary} onChange={e => theme.colors.primary = e.target.value}/>
+
+      <br/><br/>
+
+      <pre><code>{JSON.stringify(fulltheme, null, 2)}</code></pre>
+    </div>
   );
 };
 
 ReactDOM.render(
-  <PropagateContext.Provider value={theme}>
+  <ActivEnvoyContext.Provider value={theme}>
     <App/>
-  </PropagateContext.Provider>,
+  </ActivEnvoyContext.Provider>,
   div
 );
